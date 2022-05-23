@@ -1,0 +1,1263 @@
+﻿@{ ViewBag.Title = "Home Page"; }
+@model AcpWebApp.Models.ReportRequest
+@{var searchIcon = "\U0001F50D\uFE0E"; }
+
+
+<script type="text/javascript">
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    var disableChangeEvents = false;
+    var UniqueSenderId = 0;
+
+    window.addEventListener('load', () => { UniqueSenderId = Date.now(); });
+    window.addEventListener('unload', () => { Ajax("Unload", "", (d, t) => { console.log(d);} ); });
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    function Trim(input) {
+        var t1 = input.replaceAll("&nbsp;", " ");
+        return t1.trim();
+    }
+
+    function Rounded(input) {
+        var dot = input.indexOf(".");
+        if (dot == -1)
+            return input;
+        return input.substr(0, dot);
+    }
+
+    function SplitAt(input, char) {
+        var sep = input.indexOf(char);
+        if (sep == -1)
+            return [input, input];
+        return [input.substr(0, sep), input.substr(sep + 1)];
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    var autoPeers =
+        [
+            null,       // Peer 0 = Target
+            null,       // Peer 1
+            null,       // Peer 2
+            null,       // Peer 3
+            null,       // Peer 4
+            null,       // Peer 5
+            null,       // Peer 6
+            null,       // Peer 7
+            null,       // Peer 8
+            null,       // Peer 9
+            null,       // Peer 10
+        ];
+
+    var selectedPeers =
+        [
+            null,       // Peer 0 = Target
+            null,       // Peer 1
+            null,       // Peer 2
+            null,       // Peer 3
+            null,       // Peer 4
+            null,       // Peer 5
+            null,       // Peer 6
+            null,       // Peer 7
+            null,       // Peer 8
+            null,       // Peer 9
+            null,       // Peer 10
+        ];
+
+
+    function FindPeers() {
+
+        var element = document.getElementById("TickerSymbol");
+        var ts = Trim(element.value);
+        if (ts == "")
+            return;
+
+        var count = 10;
+
+        Ajax("FindPeers",
+            "TickerSymbol=" + ts + "&Count=" + count,
+            LoadPeers);
+    }
+
+
+    function LoadPeers(all) {
+
+        console.log("LoadPeers: all = " + all);
+
+        var peers = all.split("|");                     // each peer is seperated by '|' fore and aft
+        for (var i = 0; i < peers.length; ++i) {
+
+            var peer = peers[i];
+            console.log("LoadPeers: peers[" + i + "] = " + peer);
+            var fields = peer.split(';');
+            autoPeers[i] = fields; 
+        }
+
+        FillPeerRows(true);
+        console.log("LoadPeers done");
+    }
+
+    function FillPeerRows(includeTarget) {
+
+        var start = includeTarget ? 0 : 1;
+
+        for (var i = start; i < 11; ++i) {
+
+            console.log("FillPeerRows: i = " + i);
+            console.log("selectedPeers[" + i + "] = " + selectedPeers[i]);
+            console.log("autoPeers[" + i + "] = " + autoPeers[i]);
+
+            var u = document.getElementById("PeerUsage" + i);
+            var used = (u == null) ? true : document.getElementById("PeerUsage" + i).checked; // target is always used
+            var rowData = null;
+            if (used) {
+                if (selectedPeers[i] != null)
+                    rowData = selectedPeers[i];
+                else
+                    rowData = autoPeers[i];
+            }
+
+            PutCompanyInfoIntoTableRow("Peer", i, rowData);
+        }
+    }
+
+    function PutCompanyInfoIntoTableRow(prefix, rowNumber, companyInfo) {
+
+        if ((companyInfo == null) || (companyInfo.length != 7))
+            companyInfo = new Array("", "", "", "", "", "", "");
+        var name = prefix + rowNumber;
+
+        console.log("PutCompanyInfoIntoTableRow name=" + name);
+        var e = document.getElementById(name);
+        console.log("PutCompanyInfoIntoTableRow  companyInfo[0] = " + companyInfo[0]);
+        e.innerHTML = companyInfo[0];
+
+        if (prefix == "Peer") {
+            e = document.getElementById("Peer" + rowNumber + "Search");
+            if (e != null) {
+                e.innerHTML = (companyInfo == null) ? "" : "@searchIcon";
+            }
+        }
+
+        e = document.getElementById(name + "_1");
+        console.log("PutCompanyInfoIntoTableRow  companyInfo[1]=" + companyInfo[1]);
+        e.innerHTML = companyInfo[1];
+
+        e = document.getElementById(name + "_2");
+        console.log("PutCompanyInfoIntoTableRow  companyInfo[2]=" + companyInfo[2]);
+        e.innerHTML = companyInfo[2];
+
+        e = document.getElementById(name + "_3");
+        console.log("PutCompanyInfoIntoTableRow  companyInfo[3]=" + companyInfo[3]);
+        e.innerHTML = Rounded(companyInfo[3]);
+
+        e = document.getElementById(name + "_4");
+        console.log("PutCompanyInfoIntoTableRow  companyInfo[4]=" + companyInfo[4]);
+        e.innerHTML = Rounded(companyInfo[4]);
+
+        e = document.getElementById(name + "_5");
+        if (e != null) {
+            // console.log("PutCompanyInfoIntoTableRow  companyInfo[5]=" + companyInfo[5]);
+            e.innerHTML = Rounded(companyInfo[5]);
+        }
+
+        e = document.getElementById(name + "_6");
+        if (e != null) {
+            // console.log("PutCompanyInfoIntoTableRow  companyInfo[6]=" + companyInfo[6]);
+            e.innerHTML = companyInfo[6];
+        }
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    var userInputBlockCount = 0;
+
+    function BlockUserInput(block) {
+        if (block === false)
+            --userInputBlockCount;
+        else
+            ++userInputBlockCount;
+
+        /*
+        if ((userInputBlockCount < 0) || (userInputBlockCount > 1))
+        {
+            console.log("userInputBlockCount = " + userInputBlockCount);
+            console.debug();
+            //console.assert((userInputBlockCount == 0) || (userInputBlockCount == 1));
+        }
+        */
+
+
+        if (userInputBlockCount === 0) {
+            var overlay = document.getElementById("overlay");
+            overlay.hidden = true;
+            overlay.style.cursor = "pointer";
+            //console.log("overlay hidden");
+        }
+        else if (userInputBlockCount === 1) {
+            var overlay = document.getElementById("overlay");
+            overlay.hidden = false;
+            overlay.style.cursor = "wait";
+           //console.log("overlay shown");
+       }
+    }
+
+    function UnBlockUserInput() {
+        BlockUserInput(false);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    var getReportProgressInterval = null;
+
+    function OnGenerateReport() {
+
+        var ts = document.getElementById("TickerSymbol").value;
+        if (ts == "")
+            return;
+
+        var peers = "";
+        var shortNames = "";
+        for (var i = 1; i <= 10; ++i) {
+
+            var peer0 = "Peer" + i;
+            var peer1 = document.getElementById(peer0).innerHTML;
+            var peer3 = Trim(peer1);
+            // console.log("peer1 " + peer1 + ",  peer3 " + peer3);
+            if (peer3.length > 0) {
+                if (peers.length > 0)
+                    peers += ",";
+                peers += peer3;
+            }
+            // console.log(peers);
+
+            var sn0 = peer0 + "_2";
+            // console.log("sn0 " + sn0);
+            var sn1 = document.getElementById(sn0).innerHTML;
+            var sn3 = Trim(sn1);
+            // console.log("sn1 " + sn1 + ",  sn3 " + sn3);
+            if (sn3.length > 0) {
+                if (shortNames.length > 0)
+                    shortNames += ",";
+                shortNames += sn3;
+            }
+            // console.log(shortNames);
+        }
+
+        var peerFirstPeriod = document.getElementById("FirstPeerPeriod").value;
+        var peerLastPeriod = document.getElementById("LastPeerPeriod").value;
+        var timePeriodType = document.getElementById("TimePeriodType").value;
+        var firstPeriod = document.getElementById("FirstPeriod").value;
+        var lastPeriod = document.getElementById("LastPeriod").value;
+        var decompositionBegin = document.getElementById("DecompositionFrom").value;
+        var decompositionEnd = document.getElementById("DecompositionTo").value;
+        var reportType = document.getElementById("ReportType").value;
+
+        BlockUserInput();   // we're going to be in and out of Ajax many times, so we need an overall block
+        var pw = document.getElementById("report-progress-window");
+        pw.hidden = false;
+
+        Ajax("GenerateReport",
+            "TickerSymbol=" + ts + "&Peers=" + peers + "&PeerFirstPeriod=" + peerFirstPeriod + "&PeerLastPeriod=" + peerLastPeriod +
+            "&TimePeriodType=" + timePeriodType + "&FirstPeriod=" + firstPeriod + "&LastPeriod=" + lastPeriod +
+            "&ReportType=" + reportType + "&DecompositionBegin=" + decompositionBegin + "&DecompositionEnd=" + decompositionEnd +
+            "&PeersShortNames=" + shortNames,
+            ShowReportProgress
+        );
+
+        getReportProgressInterval = setInterval(GetReportProgress, 10000);
+    }
+
+    function GetReportProgress() {
+        Ajax("GetReportProgress",
+            "",
+            ShowReportProgress
+        );
+    }
+
+    function ShowReportProgress(data) {
+        var parts = data.split(';'); // count, total, filename, error
+        var total = 1000;
+        var count = 500;
+        var filename = null;
+        var error = null;
+        var done = null;
+
+        for (var i = 0; i < parts.length; ++i) {
+            // console.log("In ShowReportProgress: parts[" + i + "] = '" + parts[i] + "'");
+            var pieces = parts[i].split('=');
+            if (pieces.length == 2) {
+                var name = pieces[0].toUpperCase();
+                // console.log("In ShowReportProgress: name = '" + name + "'");
+                // console.log("                           value = '" + pieces[1] + "'");
+                if (name == "COUNT")
+                    count = parseFloat(pieces[1]);
+                else if (name == "TOTAL")
+                    total = parseFloat(pieces[1]);
+                else if (name == "FILENAME")
+                    filename = pieces[1];
+                else if (name == "ERROR")
+                    error = pieces[1];
+                else if (name == "DONE")
+                    done = pieces[1];
+            }
+        }
+
+        console.log("In ShowReportProgress: total=" + total + ", count=" + count + ", filename=" + filename + ", error=" + error);
+
+        if (filename != null) {
+            console.log(filename);
+            filename = filename.replaceAll('\\', '/');
+            var fnl = filename.toLowerCase();
+            var i = fnl.indexOf("/output/");
+            if (i >= 0)
+                filename = filename.substring(i);
+            SetExportLink(filename);
+        }
+
+        if (error != null) {
+            ShowError(error);
+            UnBlockUserInput();
+        }
+
+        var fraction = count / total;
+        var percentage = Math.floor(fraction * 100.0);
+        var x = document.getElementById("reportProgress");
+        x.innerHTML = percentage + "% complete";
+
+        if (done != null) {
+
+            if (getReportProgressInterval != null) {
+                clearInterval(getReportProgressInterval);
+                getReportProgressInterval = null;
+            }
+
+            // console.log("Showing rcw");
+            var pw = document.getElementById("report-progress-window");
+            pw.hidden = true;
+            pw = document.getElementById("report-completed-window");
+            pw.hidden = false;
+            pw.style.cursor = "pointer";
+            x = document.getElementById("export2");
+            x.setAttribute("onclick", "{ event.preventDefault(); window.location.href = \"" + filename + "\"; }");
+        }
+    }
+
+    function CloseProgressWindow() {
+        var pw = document.getElementById("report-completed-window");
+        pw.hidden = true;
+        UnBlockUserInput();
+        UnBlockUserInput();
+        if (getReportProgressInterval != null) {
+            clearInterval(getReportProgressInterval);
+            getReportProgressInterval = null;
+        }
+    }
+
+    function SetExportLink(filename) {
+        BlockUserInput(); // the 'success' logic in Ajax unblocked input, and we're not really ready for that
+        var x = document.getElementById("export");
+        x.setAttribute("onclick", "{ event.preventDefault(); window.location.href = \"" + filename + "\"; }");
+        x.hidden = false;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    var timePeriods = new Array('FY2010', 'FY2011', 'FY2012', 'FY2013', 'FY2014', 'FY2015', 'FY2016', 'FY2017', 'FY2018', 'FY2019', 'FY2020', 'FY2021');
+    var peerPeriods = new Array('CY2009', 'CY2010', 'CY2011', 'CY2012', 'CY2013', 'CY2014', 'CY2015', 'CY2016', 'CY2017', 'CY2018', 'CY2019', 'CY2020');
+
+    function OnTimePeriodChanged() {
+
+        if (disableChangeEvents)
+            return;
+
+        var ts = document.getElementById("TickerSymbol");
+        var tpt = document.getElementById("TimePeriodType");
+
+        disableChangeEvents = true;
+
+        Ajax("ValidateTimePeriodSettings",
+            "TickerSymbol=" + ts.value + "&TimePeriodType=" + tpt.value,
+            LoadTimePeriodSettings);
+    }
+
+
+    function LoadTimePeriodSettings(data) {
+        console.log("Entered LoadTimePeriodSettings('" + data + "')");
+
+        disableChangeEvents = true;
+        // var timePeriodCount = 0;
+
+        var parts = data.split('|'); // ticker, tpc, tpt, err, periods
+        for (var i = 0; i < parts.length; ++i) {
+            // console.log("In LoadTimePeriodSettings: parts[" + i + "] = '" + parts[i] + "'");
+            var pieces = parts[i].split('=');
+            if (pieces.length == 2) {
+                var name = pieces[0].toUpperCase();
+                console.log("In LoadTimePeriodSettings: name = '" + name + "'");
+                console.log("                           value = '" + pieces[1] + "'");
+                if (name == "TIMEPERIODTYPE") {
+                    document.getElementById("TimePeriodType").value = pieces[1];
+                }
+                else if (name == "TIMEPERIODS") {
+                    timePeriods = pieces[1].split(';');
+                    // console.log("In LoadTimePeriodSettings: timePeriods = '" + timePeriods + "'");
+                    ReplaceOptions("FirstPeriod", timePeriods, 0, timePeriods.length, 0);
+                    ReplaceOptions("LastPeriod", timePeriods, 0, timePeriods.length, timePeriods.length-1);
+                    ReplaceOptions("DecompositionFrom", timePeriods, 0, timePeriods.length, 0);
+                    ReplaceOptions("DecompositionTo", timePeriods, 0, timePeriods.length, timePeriods.length - 1);
+                }
+                else if (name == "PEERPERIODS") {
+                    // var peerPeriodCount = document.getElementById("PeerPeriodCount").value;
+                    peerPeriods = pieces[1].split(';');
+                    // console.log("In LoadTimePeriodSettings: peerPeriods = '" + peerPeriods + "'");
+                    ReplaceOptions("FirstPeerPeriod", peerPeriods, 0, peerPeriods.length, 0);
+                    ReplaceOptions("LastPeerPeriod", peerPeriods, 0, peerPeriods.length, peerPeriods.length - 1);
+                }
+                else if (name == "TICKERSYMBOL") {
+                    var element = document.getElementById("TickerSymbol");
+                    element.value = pieces[1];
+                }
+                else if (name == "ERROR") {
+                    ShowError(pieces[1]);
+                }
+            }
+        }
+
+        disableChangeEvents = false;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    function ShowError(message) {
+        alert(message)
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    function OnFirstPeriodChanged() {
+        OnSomeFirstPeriodChanged("FirstPeriod", "LastPeriod", timePeriods);
+
+        var f = document.getElementById("FirstPeriod").value;
+        var l = document.getElementById("LastPeriod").value;
+        var fi = timePeriods.indexOf(f);
+        var li = timePeriods.indexOf(l);
+        var fi = timePeriods.indexOf(f);
+        var d = document.getElementById("DecompositionFrom");
+        d.value = timePeriods[fi];
+        d = document.getElementById("DecompositionTo");
+        d.value = timePeriods[li];
+    }
+
+    function OnLastPeriodChanged() {
+        OnSomeLastPeriodChanged("FirstPeriod", "LastPeriod", timePeriods);
+
+        var f = document.getElementById("FirstPeriod").value;
+        var l = document.getElementById("LastPeriod").value;
+        var fi = timePeriods.indexOf(f);
+        var li = timePeriods.indexOf(l);
+        var fi = timePeriods.indexOf(f);
+        var d = document.getElementById("DecompositionFrom");
+        d.value = timePeriods[fi];
+        d = document.getElementById("DecompositionTo");
+        d.value = timePeriods[li];
+    }
+
+    function OnDecompositionFromChanged() {
+        OnSomeFirstPeriodChanged("DecompositionFrom", "DecompositionTo", timePeriods);
+    }
+
+    function OnDecompositionToChanged() {
+        OnSomeLastPeriodChanged("DecompositionFrom", "DecompositionTo", timePeriods);
+    }
+
+
+    function OnFirstPeerPeriodChanged() {
+        OnSomeFirstPeriodChanged("FirstPeerPeriod", "LastPeerPeriod", peerPeriods);
+    }
+
+    function OnLastPeerPeriodChanged() {
+        OnSomeLastPeriodChanged("FirstPeerPeriod", "LastPeerPeriod", peerPeriods);
+    }
+
+    function OnSomeFirstPeriodChanged(firstPeriodElementName, lastPeriodElementName, periods) {
+        var f = document.getElementById(firstPeriodElementName).value;
+        var l = document.getElementById(lastPeriodElementName).value;
+        var fi = periods.indexOf(f);
+        var li = periods.indexOf(l);
+
+        if (fi > li)
+            li = fi;
+
+        ReplaceOptionsAndSelect(firstPeriodElementName, periods, fi);
+        ReplaceOptionsAndSelect(lastPeriodElementName, periods, li);
+    }
+
+    function OnSomeLastPeriodChanged(firstPeriodElementName, lastPeriodElementName, periods) {
+        var f = document.getElementById(firstPeriodElementName).value;
+        var l = document.getElementById(lastPeriodElementName).value;
+        var fi = periods.indexOf(f);
+        var li = periods.indexOf(l);
+
+        if (li < fi)
+            fi = li;
+
+        ReplaceOptionsAndSelect(firstPeriodElementName, periods, fi);
+        ReplaceOptionsAndSelect(lastPeriodElementName, periods, li);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    function OnReportSettingChanged1(parameters) {
+
+        var e = document.getElementById("TickerSymbol");
+        var ts = e.value;
+        if (ts == "")
+            return;
+
+        $.ajax(
+            {
+                url: '@Url.Action("UpdateReportSettings")',
+                data: "TickerSymbol=" + ts + parameters + "&Sender=" + UniqueSenderId,
+                success: function (data, text) {
+                    setTimeout(function () { LoadReportSettings(data); }, 1);
+                },
+                error: function (request, status, error) {
+                    if (error == "Not Found") {
+                        if (confirm("Web server call failed.  Try again?")) {
+                            setTimeout(function () { FindPeers(); }, 1000);
+                        } else {
+                            UnBlockUserInput();
+                        }
+                    }
+                    else {
+                        UnBlockUserInput();
+                       alert(error);
+                    }
+                }
+            });
+
+    }
+
+    function LoadReportSettings(all) {
+
+        var err = document.getElementById("Error");
+        err.hidden = true;
+
+        var parts = all.split('|'); // ticker, tpc, tpt, err, periods
+        for (var i = 0; i < parts.length; ++i) {
+
+            var pieces = parts[i].split('=');
+            if (pieces.length == 2) {
+
+                var name = pieces[0];
+           }
+        }
+    }
+
+
+    function ReplaceOptions(elementName, options, start, count, newSettingIfNeeded)
+    {
+        //console.log("In ReplaceOptions(" + elementName + ", " + start + ", " + count + ", " + options);
+        var parent = document.getElementById(elementName);
+        var oldValue = parent.value;
+        //console.log("In ReplaceOptions oldValue=" + oldValue);
+
+        while (parent.length > 0)
+            parent.remove(parent.length - 1);
+
+        var i = 0;
+        var hasOldValue = false;
+        for (/**/; i < count; ++i) {
+            //console.log("In ReplaceOptions i=" + i + ", options[i+start]=" + options[i+start]);
+            var option = document.createElement("option");
+            option.text = options[start + i];
+            if (options[start + i] == oldValue)
+                hasOldValue = true;
+            parent.add(option);
+        }
+
+        if (hasOldValue)
+            parent.value = oldValue;
+        else if (typeof newSettingIfNeeded === 'number')
+            parent.value = options[newSettingIfNeeded];
+   }
+
+
+    function ReplaceOptionsAndSelect(elementName, options, selectedIndex) {
+        // console.log("In ReplaceOptionsAndSelect(" + elementName + ", "  + /*options + ", selectedIndex " +*/ selectedIndex);
+        var parent = document.getElementById(elementName);
+        while (parent.length > 0)
+            parent.remove(parent.length - 1);
+
+        for (var i = 0; i < options.length; ++i) {
+            // console.log("In ReplaceOptionsAndSelect i=" + i + ", options[i]=" + options[i]);
+            var option = document.createElement("option");
+            option.text = options[i];
+            parent.add(option);
+        }
+
+        parent.value = options[selectedIndex];
+    }
+
+    function FindTarget() {
+        var e = document.getElementById("TickerSymbol");
+        //SearchFor(0, e.value);
+        SearchFor(0, mostRecentSearchValue);
+    }
+
+    function FindPeer(index) {
+        SearchFor(index, "");
+    }
+
+
+    var searchPeerIndex = null; // the row number of the Peer line to fill (0-10)
+
+    function SearchFor(targetPeerIndex, searchFor) {
+
+        searchPeerIndex = targetPeerIndex;
+
+        var e = document.getElementById("search");
+        for (var i = 0; i < 5; ++i) {
+            var em = document.getElementById("MatchButton" + (i + 1));
+            PutCompanyInfoIntoTableRow("Match", i + 1, null);
+            em.hidden = true;
+        }
+        e.hidden = false;
+
+        e = document.getElementById("SearchName");
+        e.value = searchFor;
+        e.focus();
+        if (searchFor != "") {
+            UpdateSearch();
+        }
+    }
+
+    function UpdateSearch() {
+        e = document.getElementById("SearchName");
+        var searchFor = e.value;
+        if (searchFor == "")
+            return;
+        // console.log("Starting search for " + searchFor);
+        BlockUserInput();
+        var updateUrl = '@Url.Action("SearchByName")';
+        $.ajax(
+        {
+            url: updateUrl,
+            data: "SearchName=" + searchFor + "&Sender=" + UniqueSenderId,
+            success: function (data, text) {
+                // console.log("Received: '" + data + "'")
+                var companies = data.split("|");
+                for (var i = 0; i < 5; ++i) {
+                    var em = document.getElementById("MatchButton" + (i + 1));
+                    if (i >= companies.length) {
+                        //PutCompanyInfoIntoTableRow("Match", i + 1, null);
+                        //em.hidden = true;
+                    } else {
+                        var fields = companies[i].split(";");
+                        PutCompanyInfoIntoTableRow("Match", i + 1, fields);
+                        em.hidden = false;
+                    }
+                }
+                UnBlockUserInput();
+                // console.log("Done searching for " + searchFor);
+            },
+            error: function (request, status, error) {
+                UnBlockUserInput();
+                // console.log("Error searching for " + error);
+            }
+        });
+    }
+
+    function CancelSearch() {
+        var e = document.getElementById("search");
+        e.hidden = true;
+    }
+
+    function UseMatch(index) {
+        var e = document.getElementById("search");
+        e.hidden = true;
+        var m = "Match" + index;
+        e = document.getElementById(m);
+
+        var x = searchPeerIndex;
+        var p = "Peer" + x;
+        var q = document.getElementById(p);
+        var eih = Trim(e.innerHTML);
+        q.innerHTML = eih;
+
+        var pu = "PeerUsage" + x;
+        var qu = document.getElementById(pu);
+        qu.checked = true;
+
+
+        if (x == 0) {
+            var ts = document.getElementById("TickerSymbol");
+            eih = Trim(e.innerHTML);
+            ts.value = eih;
+        }
+
+        selectedPeers[index] = [eih];
+        for (var col=1; col<7; ++col)
+        {
+            var mm = m + "_" + col;
+            var pp = p + "_" + col;
+            var pe = document.getElementById(pp);
+            // console.log(mm + " -> " + pp);
+            eih = Trim(document.getElementById(mm).innerHTML);
+            // console.log("match field " + col + " " + eih);
+            pe.innerHTML = eih;
+            selectedPeers[index].push(eih);
+        }
+
+        if (x == 0) {
+            FindPeers();
+        }
+    }
+
+    function OnPeerUsageChanged(element, index) {
+
+        var value = element.checked;
+        var rowData = null;
+
+        if (value) {
+            rowData = selectedPeers[index];
+            if ((rowData == null) || (rowData[0] == ""))
+                rowData = autoPeers[index];
+        }
+
+        PutCompanyInfoIntoTableRow("Peer", index, rowData);
+    }
+
+    // data = part
+    // data = part ^ part ^ part
+    function ProcessIncomingData(data) {
+        console.log("data = " + data);
+        var parts = data.split('^');
+        for (var i = 0; i < parts.length; ++i)
+            ProcessIncomingPart(parts[i]);
+    }
+
+    // part = name=piece 
+    // part = name=piece | name=piece | name=piece
+    function ProcessIncomingPart(part) {
+        console.log("part = " + part);
+        var nv = SplitAt(part, '=');
+        var name = nv[0].toUpperCase();
+        if (name == "TIMEPERIODSETTINGS")
+            LoadTimePeriodSettings(nv[1]);
+        else if (name == "PEERS")
+            LoadPeers(nv[1]);
+        else if (name == "ERROR")
+            ShowError(nv[1]);
+        else
+            console.log("WTF " + part);
+    }
+
+
+
+
+    var mostRecentSearchValue = null;
+
+    function QuickTickerSearchForTarget() {
+        e = document.getElementById("TickerSymbol");
+        var searchFor = Trim(e.value);
+        if (searchFor == "")
+            return;
+        mostRecentSearchValue = searchFor;
+        // console.log("mostRecentSearchValue is now '" + mostRecentSearchValue + "'");
+        Ajax("QuickTickerSearch",
+            "SearchName=" + searchFor + "&ForTarget=1" + "&TimePeriodType=" + document.getElementById("TimePeriodType").value,
+            (data) => { ProcessIncomingData(data); });
+    }
+
+    function QuickTickerSearchForPeer(element, peerNumber) {
+        e = document.getElementById("TickerSymbol");
+        if (searchFor == "")
+            return;
+        mostRecentSearchValue = searchFor;
+        // console.log("mostRecentSearchValue is now '" + mostRecentSearchValue + "' peerNumber is " + peerNumber);
+        Ajax("QuickTickerSearch",
+            "SearchName=" + searchFor,
+            (data) => {
+                ProcessIncomingData(data);
+                /*     var pieces = data.split(';');
+                    e.value = pieces[0];
+                    PutCompanyInfoIntoTableRow("Peer", peerNumber, pieces);
+                    OnTimePeriodChanged();
+                },
+                error: function (request, status, error) {
+                    // console.log("Error quick searching for " + error);
+                }*/
+            }
+        );
+    }
+
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    function Ajax(action, data, successFunction) {
+
+        if (data != "")
+            data += "&";
+        data += "Sender=" + UniqueSenderId;
+
+        console.log("Entered Ajax('" + action + "','" + data + "')");
+        var ajaxUrl = '/Home/' + action;
+        BlockUserInput();
+        var err = document.getElementById("Error");
+        err.hidden = true;
+
+        $.ajax(
+        {
+            url: ajaxUrl,
+            data: data,
+            success: function (data, text) {
+                console.log("Success in Ajax: " + data + ", " + text);
+                successFunction(data);
+                UnBlockUserInput();
+            },
+            error: function (request, status, error) {
+                console.log("Error in Ajax: " + request + ", " + status + ", " + error);
+                UnBlockUserInput();
+                if (error == "Not Found") {
+                    if (confirm("Web server call '" + ajaxUrl + "' failed.  Try again?")) {
+                        setTimeout(function () { Ajax(action, data, success); }, 1000);
+                    }
+                }
+                else {
+                    var err = document.getElementById("Error");
+                    err.innerHTML = error;
+                    err.hidden = false;
+                }
+            }
+        });
+    }
+
+
+</script>
+
+<style>
+    table.excel {
+        border-collapse: collapse;
+        font: 20px Arial, sans-serif;
+        overflow: hidden;
+        table-layout: fixed;
+    }
+
+        table.excel td, table.excel th {
+            border: 1px solid white;
+            overflow: hidden;
+            border-spacing: 1px;
+        }
+
+        table.excel tbody td {
+            overflow: hidden;
+            border-spacing: 1px;
+        }
+
+    td.blue {
+        background-color: cornflowerblue;
+    }
+
+    td.green {
+        background-color: rgb(123,147,123);
+    }
+
+    td.loaded-color {
+        background-color: darkseagreen;
+    }
+
+    td.button-color {
+        background-color: lightgray;
+        border-width: 1px;
+    }
+
+    td.bordered {
+    }
+
+    .searchButton {
+        height: 27px;
+        text-align: center;
+        margin: 0 auto;
+        vertical-align: middle;
+        display: inline-block;
+        font: 20px Arial, sans-serif;
+    }
+
+
+    input[type="text"] {
+        background-color: lightgoldenrodyellow;
+        border-width: 1px;
+        width: 150px;
+        font: 20px Arial, sans-serif;
+        width: 0;
+        min-width: 100%;
+    }
+
+    input[type="number"] {
+        background-color: lightgoldenrodyellow;
+        border-width: 1px;
+        width: 3em;
+        font: 20px Arial, sans-serif;
+    }
+
+    select {
+        background-color: lightgoldenrodyellow;
+        border-width: 1px;
+    }
+
+    .column1 {
+        width: 175px;
+        overflow: hidden;
+        padding-right: 5px;
+        text-align: right;
+    }
+
+    .column2 {
+        width: 175px;
+        overflow: hidden;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .column2A {
+        width: 25px;
+        overflow: hidden;
+    }
+
+    .column3 {
+        min-width: 275px;
+        overflow: hidden;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .column4 {
+        min-width: 120px;
+        overflow: hidden;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .column5 {
+        min-width: 120px;
+        overflow: hidden;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .column6 {
+        min-width: 120px;
+        overflow: hidden;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .column7 {
+        min-width: 120px;
+        overflow: hidden;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .column8 {
+        min-width: 120px;
+        overflow: hidden;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .centered {
+        text-align: center;
+    }
+
+    .right {
+        text-align: right;
+    }
+</style>
+
+<div id="overlay" style="position: absolute; top: 0px; left: 0px; background-color: rgba(0, 0, 0, 0.6); width: 100%; height: 100vh; z-index: 9990; cursor: progress" hidden>
+    <div id="report-progress-window" style="position: absolute; top: 25%; left: 25%; background-color: white; width: 50%;  z-index: 9991; cursor: progress" hidden>
+        <div style="height:10%;">&nbsp;</div><br />
+        <div style="left:25%; text-align:center;">Generating PowerPoint presentation.  Please wait.</div><br />
+        <div style="left:25%; text-align:center;"><progress style="width:75%;"></progress></div><br />
+        <div style="left:25%; text-align:center;" id="reportProgress"></div><br />
+        <div style="height:10%;">&nbsp;</div><br />
+    </div>
+    <div id="report-completed-window" style="position: absolute; top: 25%; left: 30%; background-color: white; width: 40%;  z-index: 9992; cursor: pointer" hidden>
+        <div>&nbsp;</div><br />
+        <div style="left:25%; text-align:center;">The report has been generated.</div><br />
+        <div style="left:25%; text-align:center;">
+            <a id="export2" download href="#" mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation">Download the report</a>
+        </div><br />
+        <div style="left:25%; text-align:center;"><input type="button" onclick="{ CloseProgressWindow(); }" value="Close" class="centered"></div><br />
+    </div>
+</div>
+
+<div id="main" style="text-align: left; z-index: 1;">
+    <table class="excel">
+        <tr><td class="column1"></td><td class="column2"></td><td class="column2A"></td><td class="column3"></td><td class="column4"></td><td class="column5"></td><td class="column6"></td><td class="column7"></td><td class="column8"></td></tr>
+
+        <tr>
+            <td class="column1">Ticker Symbol:</td>
+            <td class="column2"><input id="TickerSymbol" type="text" onchange="QuickTickerSearchForTarget();"></td>
+            <td class="column2A"><button class="searchButton" onclick="{ FindTarget(); }"><div style="position:relative; top:-4px;">@searchIcon</div></button></td>
+            <td></td>
+            <td colspan="4" class="red" id="Error"></td>
+        </tr>
+
+        <tr>
+            <td class="column1">Time Period Type:</td>
+            <td class="column2" colspan="4">
+                <select id="TimePeriodType" onChange="{ OnTimePeriodChanged(); }">
+                    <option value="Years" selected>Years</option>
+                    <option value="Quarters">Quarters</option>
+                </select>
+                <label for="FirstPeriod">&nbsp;From&nbsp;</label>
+                <select id="FirstPeriod" onchange="{ OnFirstPeriodChanged(); }">
+                    <option>FY2011</option>
+                    <option selected>FY2012</option>
+                    <option>FY2013</option>
+                    <option>FY2014</option>
+                    <option>FY2015</option>
+                    <option>FY2016</option>
+                    <option>FY2017</option>
+                    <option>FY2018</option>
+                    <option>FY2019</option>
+                    <option>FY2020</option>
+                    <option>FY2021</option>
+                </select>
+                <label for="LastPeriod">&nbsp;To&nbsp;</label>
+                <select id="LastPeriod" onchange="{ OnLastPeriodChanged(); }">
+                    <option>FY2011</option>
+                    <option>FY2012</option>
+                    <option>FY2013</option>
+                    <option>FY2014</option>
+                    <option>FY2015</option>
+                    <option>FY2016</option>
+                    <option>FY2017</option>
+                    <option>FY2018</option>
+                    <option>FY2019</option>
+                    <option>FY2020</option>
+                    <option selected>FY2021</option>
+                </select>
+            </td>
+        </tr>
+
+        <tr>
+            <td class="column1">Decomposition:</td>
+            <td class="column2" colspan="4">
+                <label for="DecompositionFrom">Compare&nbsp;</label>
+                <select id="DecompositionFrom" onChange="{ OnDecompositionFromChanged(); }">
+                    <option>FY2011</option>
+                    <option selected>FY2012</option>
+                    <option>FY2013</option>
+                    <option>FY2014</option>
+                    <option>FY2015</option>
+                    <option>FY2016</option>
+                    <option>FY2017</option>
+                    <option>FY2018</option>
+                    <option>FY2019</option>
+                    <option>FY2020</option>
+                    <option>FY2021</option>
+                </select>
+                <label for="DecompositionTo">&nbsp;to&nbsp;</label>
+                <select id="DecompositionTo" onChange="{ OnDecompositionToChanged(); }">
+                    >
+                    <option>FY2011</option>
+                    <option>FY2012</option>
+                    <option>FY2013</option>
+                    <option>FY2014</option>
+                    <option>FY2015</option>
+                    <option>FY2016</option>
+                    <option>FY2017</option>
+                    <option>FY2018</option>
+                    <option>FY2019</option>
+                    <option>FY2020</option>
+                    <option selected>FY2021</option>
+                </select>
+            </td>
+        </tr>
+
+        <tr>
+            <td class="column1">Analysis Type:</td>
+            <td class="column2">
+                <select id="ReportType">
+                    <option selected>Financial</option>
+                    <option>Non-Financial</option>
+                </select>
+            </td>
+            <td class="column2A"></td>
+        </tr>
+
+        <tr><td class="column1">&nbsp;</td><td class="column2"></td><td class="column2A"></td><td class="column3"></td><td class="column4"></td><td class="column5"></td><td class="column6"></td><td class="column7"></td><td class="column8"></td></tr>
+        <tr><td class="column1">&nbsp;</td><td class="column2"></td><td class="column2A"></td><td class="column3"></td><td class="column4"></td><td class="column5"></td><td class="column6"></td><td class="column7"></td><td class="column8"></td></tr>
+
+        <tr>
+            <td class="column1"></td>
+            <td class="blue bordered centered" colspan="2">Ticker Symbol</td>
+            <td class="blue bordered centered">Company Name</td>
+            <td class="blue bordered centered">Short Name</td>
+            <td class="blue bordered centered">Market Cap<br />USD mn</td>
+            <td class="blue bordered centered">Revenue<br />USD mn</td>
+            <td class="blue bordered centered">Net Profit<br />USD mn</td>
+            <td class="blue bordered centered">Number of <br />Employees<br /></td>
+        </tr>
+
+        @{ var j = "Peer0"; }
+        <tr>
+            <td class="column1">Target:&nbsp;</td>
+            <td class="column2 green" id="@j" colspan="2">&nbsp;</td>
+            @{var k = j + "_1";}
+            <td class="column3 green" id="@k">&nbsp;</td>
+            @{k = j + "_2";}
+            <td class="column4 green" id="@k">&nbsp;</td>
+            @{k = j + "_3";}
+            <td class="column5 green right" id="@k">&nbsp;</td>
+            @{k = j + "_4";}
+            <td class="column6 green right" id="@k">&nbsp;</td>
+            @{k = j + "_5";}
+            <td class="column7 green right" id="@k">&nbsp;</td>
+            @{k = j + "_6";}
+            <td class="column8 green right" id="@k">&nbsp;</td>
+        </tr>
+
+        <tr><td>&nbsp;</td></tr>
+
+        <tr>
+            <td class="column1">Peers:&nbsp;</td>
+            <td class="column2" colspan="4">
+                Compare peers from
+                <select id="FirstPeerPeriod" onchange="{ OnFirstPeerPeriodChanged(); }">
+                    <option selected>CY2011</option>
+                    <option>CY2012</option>
+                    <option>CY2013</option>
+                    <option>CY2014</option>
+                    <option>CY2015</option>
+                    <option>CY2016</option>
+                    <option>CY2017</option>
+                    <option>CY2018</option>
+                    <option>CY2019</option>
+                    <option>CY2020</option>
+                </select>
+                to
+                <select id="LastPeerPeriod" onchange="{ OnLastPeerPeriodChanged(); }">
+                    <option>CY2011</option>
+                    <option>CY2012</option>
+                    <option>CY2013</option>
+                    <option>CY2014</option>
+                    <option>CY2015</option>
+                    <option>CY2016</option>
+                    <option>CY2017</option>
+                    <option>CY2018</option>
+                    <option>CY2019</option>
+                    <option selected>CY2020</option>
+                </select>
+            </td>
+            <td></td>
+        </tr>
+
+
+        @for (var i = 1; i < 11; ++i)
+        {
+            j = "Peer" + i;
+            k = "PeerUsage" + i;
+
+            <tr>
+                <td class="column1">
+                    <label for="@k">Use</label>
+                    <input type="checkbox" id="@k" name="@k" value="@j" onChange="{ OnPeerUsageChanged(this, @i); }" checked>
+                    &nbsp;
+                </td>
+
+                <td class="column2 loaded-color" id="@j">&nbsp;</td>
+                @{k = "Peer" + i + "Search";}
+                <td class="column2A"><button class="searchButton" onclick="{ FindPeer(@i); }"><div style="position:relative; top:-4px;">@searchIcon</div></button></td>
+                @{k = j + "_1";}
+                <td class="column3 loaded-color" id="@k">&nbsp;</td>
+                @{k = j + "_2";}
+                <td class="column4 loaded-color" id="@k">&nbsp;</td>
+                @{k = j + "_3";}
+                <td class="column5 loaded-color right" id="@k">&nbsp;</td>
+                @{k = j + "_4";}
+                <td class="column6 loaded-color right" id="@k">&nbsp;</td>
+                @{k = j + "_5";}
+                <td class="column7 loaded-color right" id="@k">&nbsp;</td>
+                @{k = j + "_6";}
+                <td class="column8 loaded-color right" id="@k">&nbsp;</td>
+            </tr>
+        }
+
+        <tr><td>&nbsp;</td></tr>
+
+        <tr>
+            <td>
+                <button class="searchButton" onclick="{ OnGenerateReport(); }"><div style="position:relative; top:0px;">Generate Report</div></button>
+            </td>
+            <td colspan="8">
+                <a id="export" download hidden href="#" mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation">Download the report</a>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div id="search" style="position: absolute; top: 0px; left: 0px; background-color: rgba(255, 255, 255, 1); width: 100%; height: 100vh; z-index: 2;" hidden>
+    <div style="min-height:50px">&nbsp;</div>
+    <table class="excel">
+
+        <tr><td class="column1"></td><td class="column2"></td><td class="column3"></td><td class="column4"></td><td class="column5"></td><td class="column6"></td><td class="column7"></td><td class="column8"></td></tr>
+
+        <tr>
+            <td class="column1 right">Search For:</td>
+            <td class="column2"><input id="SearchName" type="text"></td>
+            <td>
+                <button class="searchButton" onclick="{ UpdateSearch(); }"><div style="position:relative; top:0px;">Search</div></button>
+            </td>
+        </tr>
+
+        <tr><td class="column1"></td><td class="column2"></td><td class="column3"></td><td class="column4"></td><td class="column5"></td><td class="column6"></td><td class="column7"></td><td class="column8"></td></tr>
+
+        <tr>
+            <td class="column1" style="border-right-color: black;"></td>
+            <td class="column2 blue bordered centered">Ticker Symbol</td>
+            <td class="column3 blue bordered centered">Company Name</td>
+            <td class="column4 blue bordered centered">Short Name</td>
+            <td class="column5 blue bordered centered">Market Cap<br />USD mn</td>
+            <td class="column6 blue bordered centered">Revenue<br />USD mn</td>
+            <td class="column7 blue bordered centered">Net Profit<br />USD mn</td>
+            <td class="column8 blue bordered centered">Number of <br />Employees<br /></td>
+        </tr>
+
+        <tr><td class="column1"></td><td class="column2"></td><td class="column3"></td><td class="column4"></td><td class="column5"></td><td class="column6"></td><td class="column7"></td><td class="column8"></td></tr>
+
+        @for (var i = 1; i < 6; ++i)
+        {
+            <tr>
+                @{var m = "MatchButton" + i.ToString();}
+                <td class="column1 right" style="height:27px;"><button id="@m" class="searchButton" onclick="{ UseMatch(@i); }"><div style="position:relative; top:0px;">Select &gt;</div></button></td>
+                @{j = "Match" + i.ToString();}
+                <td id="@j" class="column2 loaded-color">&nbsp;</td>
+                @for (var n = 1; n < 7; ++n)
+                {
+                    var col = "column" + (n + 2).ToString();
+                    if (n > 2) { col += " number"; }
+                    var idx = j + "_" + n.ToString();
+                    var right = (n > 3) ? "right" : "";
+                    <td id="@idx" class="@col loaded-color @right">&nbsp;</td>
+                }
+            </tr>
+        }
+        <tr><td>&nbsp;</td></tr>
+        <tr>
+            <td><button class="searchButton" onclick="{ CancelSearch(); }"><div style="position:relative; top:0px;">Close</div></button></td>
+        </tr>
+    </table>
+
+</div>
+
+
+
+
